@@ -132,3 +132,20 @@
     @apply p-0 m-0 min-h-screen text-default bg-bg-default;
   }
 }
+
+/**
+ * Styles for blogs
+ */
+.prose {
+		h1 {
+      @apply text-2xl sm:text-3xl md:text-5xl font-semibold text-bright
+		}
+
+    p {
+      @apply text-sm text-default
+    }
+
+    a {
+      @apply text-sm text-default cursor-pointer
+    }
+	}

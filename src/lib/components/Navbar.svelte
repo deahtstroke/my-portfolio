@@ -2,7 +2,15 @@
 	import HamburgerButton from "./HamburgerButton.svelte";
 	import Sidebar from "./Sidebar.svelte";
 	import { page } from "$app/state";
-	import { User, Briefcase, Mail, Github, Home, FileText } from "lucide-svelte";
+	import {
+		User,
+		Briefcase,
+		Mail,
+		Github,
+		Home,
+		FileText,
+		Notebook,
+	} from "lucide-svelte";
 
 	import type { MenuOption } from "$lib/types/MenuOption";
 
@@ -18,6 +26,12 @@
 			desc: "View my work",
 			ref: "/projects",
 			icon: Briefcase,
+		},
+		{
+			name: "Blog",
+			desc: "Read my Blog",
+			ref: "/blog",
+			icon: Notebook,
 		},
 		{
 			name: "Contact",

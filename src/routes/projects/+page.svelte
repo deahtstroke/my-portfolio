@@ -1,20 +1,12 @@
 <script lang="ts">
+	import { ArrowDown, ArrowUp, Search, X } from "lucide-svelte";
 	import ProjectCard from "$lib/components/ProjectCard.svelte";
+	import HeaderTitle from "$lib/components/HeaderTitle.svelte";
 
 	import { data as projects, getRepoMetadata } from "$lib/data/projects";
 	import { fadeFly } from "$lib/transitions/transitions";
-	import { ArrowDown, ArrowUp, Search, X } from "lucide-svelte";
 	import { stagger } from "$lib/utils/staggeredCount";
 	import { onMount } from "svelte";
-	import HeaderTitle from "$lib/components/HeaderTitle.svelte";
-
-	let staggeredCount = () => {
-		return stagger(false);
-	};
-
-	let resetStagger = () => {
-		return stagger(true);
-	};
 
 	let searchQuery = $state<string>("");
 	let sortBy = $state<"name" | "techCount" | "updateDate" | "creationDate">(
@@ -99,13 +91,13 @@
 		<!-- Hero section -->
 		<section class="relative py-12 flex flex-col gap-6 items-center">
 			<h1
-				in:fadeFly={{ delay: staggeredCount(), duration: 300, y: 20 }}
+				in:fadeFly={{ delay: stagger(false), duration: 300, y: 20 }}
 				class="font-bold text-center text-bright text-5xl md:text-7xl"
 			>
 				Projects
 			</h1>
 			<p
-				in:fadeFly={{ delay: staggeredCount(), duration: 300, y: 20 }}
+				in:fadeFly={{ delay: stagger(false), duration: 300, y: 20 }}
 				class="text-lg text-default text-center"
 			>
 				Explore my work across various technologies and domains
@@ -120,7 +112,7 @@
 			<!-- Search bar -->
 			<div
 				class="relative flex-1 w-full"
-				in:fadeFly={{ delay: staggeredCount(), duration: 300, y: 20 }}
+				in:fadeFly={{ delay: stagger(false), duration: 300, y: 20 }}
 			>
 				{#if hasActiveFilters}
 					<X
@@ -141,11 +133,11 @@
 			</div>
 
 			<!-- Sorting Options -->
-			<div class="flex flex-row gap-2">
-				<div
-					class="flex items-center gap-2"
-					in:fadeFly={{ delay: staggeredCount(), duration: 300, y: 20 }}
-				>
+			<div
+				in:fadeFly|global={{ delay: stagger(false), duration: 300, y: 20 }}
+				class="flex flex-row gap-2"
+			>
+				<div class="flex items-center gap-2">
 					<select
 						bind:value={sortBy}
 						class="px-4 py-2 bg-bg-dark border border-border-default rounded focus:outline-none focus:border-cyan-500 transition-colors"
@@ -176,7 +168,7 @@
 		<!-- Project Results -->
 		<section
 			class="flex flex-col items-center gap-6"
-			in:fadeFly={{ delay: resetStagger(), duration: 300, y: 20 }}
+			in:fadeFly={{ delay: stagger(true), duration: 300, y: 20 }}
 		>
 			{#if filteredProjects.length > 0}
 				<h3 class="text-default font-light">
