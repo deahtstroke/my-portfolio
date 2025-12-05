@@ -13,17 +13,17 @@ colorEnd: "180 100% 50%"
 
 Protheon, is my personal attempt at distributing the processing of several big
 files into different hosts to speed up their ingestion, processing and insertion
-to my own database. The initial inspiration comes from my original <a href="https://www.github.com/deahtstroke/pgcr-batch-processor" target="_blank">pgcr batch processor</a>
-written in Java using Spring Batch. What's weird about
-this though is that while inspecting the Github repository you might ask yourself:
-Didn't you already solve this problem using a single host? Yes, yes I did.
-However, I was very disappointed with the performance at which were processed.
-The thousands of files that I processed took around one-week and a half of
-processing using only my MacBook Pro. So I asked myself: Can I make this any
-faster? To which the answer is **yes**.
+to my own database. The initial inspiration comes from my original
+[pgcr batch processor](https://www.github.com/deahtstroke/pgcr-batch-processor)
+written in Java using Spring Batch. If you've seen that repository before
+you might ask yourself: Didn't I already solve this problem before?
+Yes, yes I did and the results were very dissapointing. Processing thousands of
+files took roughly a week and a half using only my MacBook Pro. So I asked
+myself: Can this be faster? To which the answer is obviously **yes**, just...
+not with one machine.
 
-This time instead of serving and processing everything in only one host,
-I used whatever hosts I had at my disposal: The same Macbook Pro I used earlier,
+This time instead of processing everything in only one host,
+I used whatever hosts I had at my disposal: The same Macbook Pro,
 an Intel NUC miniPC, my own gaming PC, and an MSI Claw. However, distributing tasks
 across several hosts comes with its own set of challenges, challenges I did
 not face when I utilized a single host such as network latency, race-conditions,
@@ -31,38 +31,37 @@ fault tolerance, and load balancing.
 
 ## The Master Node
 
-This part of Protheon is in charge of three important things:
+The coordinator is the core of the system: the part that actually makes
+distributed work possible. It’s responsible for:
 
-1. Define clear `GRPC` endpoints for streaming file bytes to different worker
-nodes.
-2. Manage the **workspace** for the current file that's being processed, this
-can be in the form of creating directories, opening/closing files, and putting
-tasks in the work queue.
-3. Relay telemetry data about the current state of the system, e.g., how many
-files have been completed, average, max, and min throughput, etc...
+1. Defining clear `gRPC` methods for streaming file chunks to worker nodes.
+2. Managing the **workspace** for the current file that's being processed
+(opening/closing files, and queueing tasks in the work queue).
+3. Relay telemetry data about the current state of the system (files completed,
+throughput stats, etc).
 
-Additionally, an indirect requirement is that **the host with the better hardware
-profile should act as the master node**, because, as noted earler, the master node
-handles most of the I/O operations. Keep in mind that, generally speaking,
-I/O performance isn't constrained solely by compute power, it's also
-affected by external factors like network latency external sources like the
-network latency. Still, for the purposes of this modest distributed-computing
-project is better for the coordinator to run on the host with the stronger specs.
+An indirect but obvious requirement is that **the host with the better hardware
+profile should act as the master node**. It handles most of the I/O operations
+and while I/O is influenced by computer power, network latency, and storage speed,
+giving this role to the beefiest machine still yields better throughput for a
+small distributed setup like this.
 
-### Why GRPC instead of HTTP?
+### Why gRPC instead of HTTP?
 
-Another major decision that I made with the Master Node was the use of [GRPC](https://grpc.io/)
+Another major decision that I made with the Master Node was the use of [gRPC](https://grpc.io/)
 instead of HTTP-based streaming. This was made because of several limitations
-that are intrinsic to TCP-based connections:
+that are intrinsic to TCP-based protocols:
 
-1. In TCP, and transitively HTTP, there are no clear bounds on messages, its just
-a continous stream of bytes that is relayed to the listener/client. GRPC does
-not have this limitation, it has clear message bounds and schema through the
-use of [Protobuf](https://protobuf.dev/).
-2. Generally speaking, gRPC is favored over HTTP when all communication happens
-in a controlled environment and there's no need to expose public-facing endpoints.
-This makes node-to-node communication simpler.
-3. Streaming Protobuf’s binary format is generally faster than streaming JSON
+1. **Message Framing**: In TCP, and transitively HTTP, there are no clear bounds
+on messages, its just a continous stream of bytes that is relayed
+to the listener/client. gRPC does not have this limitation, it has clear message
+bounds and schema through the use of [Protobuf](https://protobuf.dev/).
+2. **Controlled Environment**: Generally speaking, gRPC is favored over HTTP
+when all communication happens in a controlled environment and there's
+no need to expose public-facing endpoints. This makes node-to-node
+communication simpler.
+3. **Binary Efficiency**: Streaming Protobuf’s binary format
+is generally faster than streaming JSON
 over HTTP. This shouldn't surprise anyone: Binary payloads tend to be
 leaner and quicker to parse than JSON. It's also more conveninent
 for me: If ever I need JSON, I can just generate it from the
@@ -70,19 +69,36 @@ Protobuf schema using Go's `protojson` package.
 
 ### What exactly is a "workspace"?
 
-Earlier I wrote that the master node should be in charge of managing the "workspace"
-for the currently processed file. In this context, this *workspace* is just a directory.
-Nothing fancier than a build directory in a build tool such as Gradle, Node, or even
-SvelteKit. However, this workspace instead of containing compiled files has file
-chunks, more specifically, two-hundred files each containing fifty-thousand files.
-Now you might say, those are oddly specific numbers to which I say: Yes, they are,
-but for a good reason.
+Earlier I wrote that the master node manages a "workspace". I'm simply talking
+about a directory on disk. Nothing fancier than a build directory in a
+build tool such as Gradle, Node, or SvelteKit. However, this workspace
+instead of containing compiled files has file chunks, more specifically,
+two-hundred files each containing fifty-thousand lines
+due to each compressed file having static ten million lines to process. The Master
+Node handles organizing and cleaning them up whenever a worker request or finish
+tasks.
 
-## Prototyping and "Failing Fast"
+### What about Load Balancing?
 
-The early stages of this project I was prototyping my application in the form
-of a very simple Go CLI program where I mixed both the master node and the
-worker node functionality into the `main.go` file in my project. Zero unit tests,
-zero integration tests, just prototyping as fast as I could given my own
-requirements. <a href="https://github.com/deahtstroke/protheon/commit/51c6d686f05c8f0dbf24047592fc2d30fb729cd8" target="_blank" rel="noopener">Here's</a> an earlier commit in the the project if
-you'd like to check it out.
+This responsibility is offloaded to RabbitMQ entirely because of its
+natural capability to act as a
+[work-queue](https://www.rabbitmq.com/tutorials/tutorial-two-go).
+Its acknowledgement system works similarly to TCP's ACK system giving me solid
+delivery guarantees without reinventing reliability itself. The biggest downside
+to using RabbitMQ however, is the it becomes another service to configure and
+maintain. But the tradeoff is absolutely worth it, the reliability and
+simplicity far outweighs the operational overhead. This is how the
+master node achieves effective distribution of work across multiple workers.
+
+## The Worker Node(s)
+
+The worker nodes were designed to be lightweight in responsibility,
+only doing specific tasks in an idempotent way. In this case, ingest some bytes
+from a source, transform them, and subsequently save them to a SQL database, nothing
+fancy. However, they still need to have to communicate with third-party services,
+namely, the database, the work queue, and the `gRPC` server. Another important
+consideration is being able to use PostgreSQL's [pipeline mode](https://www.postgresql.org/docs/current/libpq-pipeline-mode.html)
+for better utilization of the network while performing round trips, which is
+why I decided to use the [`pgx`](https://github.com/jackc/pgx)
+Go database drivers due to their focused support for this feature.
+

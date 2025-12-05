@@ -155,7 +155,7 @@
   }
 
   code {
-    @apply text-base text-bright/85 px-1 bg-bg-card rounded
+    @apply font-mono text-base text-bright/85 px-1 bg-bg-card rounded
   }
 
   code::after, code::before {
